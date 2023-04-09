@@ -1,0 +1,460 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+
+  /* -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale; */
+}
+
+body {
+  font-family: "segoe ui";
+  color: #000000;
+}
+
+/* NAVBAR */
+.nav {
+  height: 50px;
+  width: 100%;
+  padding: 0 5px;
+  background-color: #212121;
+  /* opacity: 0.7; */
+  position: relative;
+  border-bottom: 4px solid;
+  border-image: linear-gradient(90deg, #212121 10%, rgba(20, 255, 236, 1) 35%, rgba(0, 212, 255, 1) 100%) 10;
+}
+
+.nav > .nav-header {
+  display: inline;
+}
+
+.nav > .nav-header > .nav-title {
+  font-weight: bold;
+  display: inline-block;
+  font-size: 22px;
+  color: #14ffec;
+  padding: 10px 10px 10px 10px;
+}
+
+.nav > .nav-btn {
+  display: none;
+}
+
+.nav > .nav-links {
+  display: inline;
+  float: right;
+  font-size: 18px;
+}
+
+.nav > .nav-links > a {
+  opacity: 1;
+  font-weight: 600;
+  display: inline-block;
+  padding: 13px 10px 13px 10px;
+  text-decoration: none;
+  color: #14ffec;
+}
+
+.nav > .nav-links > a:hover {
+  background-color: rgba(0, 0, 0, 0.3);
+}
+
+.nav > #nav-check {
+  display: none;
+}
+/* END NAVBAR */
+
+/* PROFLE */
+.profile {
+  /* display: flex; */
+  background-color: #323232;
+  color: #14ffec;
+  margin: 2em 15em;
+  padding: 1em;
+  border-radius: 10px;
+}
+
+.profile > .container {
+  display: flex;
+  flex-direction: column;
+  /* justify-content: center;
+  align-items: center; */
+  margin: 0 2em;
+}
+
+.profile > .container > .name {
+  font-size: 2em;
+  font-weight: 600;
+  margin: 1em 0;
+}
+
+.profile > .container > .description {
+  font-size: 1em;
+  font-weight: 600;
+  margin-bottom: 1em;
+  color: #ffffff;
+}
+/* END PROFILE */
+
+/* EXPERIENCES */
+.exp {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 1em;
+  background-color: #555555;
+  padding: 1em;
+  border-radius: 10px;
+  /* justify-content: space-between; */
+}
+.exp-title {
+  display: flex;
+  justify-content: space-between;
+}
+.exp-title > span {
+  font-size: 1.1em;
+  font-weight: 600;
+  border-radius: 10px;
+  background-color: #0d7377;
+  padding: 0.3em;
+  max-height: 1.9em;
+}
+.exp-desc {
+  display: flex;
+  flex-direction: column;
+  margin: 0.5em 1em;
+}
+/* END EXPERIENCES */
+
+/* PROJECTS */
+
+img {
+  /* max-width: 100%; */
+  max-height: 280px;
+  border-radius: 10px;
+  margin-bottom: 1.5em;
+}
+
+.project {
+  /* display: flex; */
+  background-color: #323232;
+  color: #14ffec;
+  margin: 2em 15em;
+  padding: 1em;
+  border-radius: 10px;
+}
+
+.project > .container {
+  display: flex;
+  flex-direction: column;
+  /* justify-content: center;
+  align-items: center; */
+  margin: 0 2em;
+}
+
+.project > .container > .name {
+  font-size: 2em;
+  font-weight: 600;
+  margin: 1em 0;
+}
+
+.project > .container > .description {
+  display: flex;
+  font-size: 1em;
+  font-weight: 600;
+  margin-bottom: 1em;
+  color: #ffffff;
+}
+
+.proj {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: column;
+  margin: 1em 1.2em;
+  background-color: #555555;
+  padding: 1em;
+  border-radius: 10px;
+  /* justify-content: space-between; */
+}
+
+.proj:hover {
+  transition: 0.05s;
+  border-width: 3px;
+  border-style: solid;
+  border-radius: 10px;
+  border-image: linear-gradient(90deg, #323232 0%, rgba(20, 255, 236, 1) 35%, rgba(0, 212, 255, 1) 100%) 10;
+  /* padding: 5px; */
+  box-sizing: border-box;
+}
+
+.proj-title {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.proj-stack {
+  margin-top: 20px;
+  display: flex;
+  justify-content: space-between;
+  flex-grow: 1;
+}
+.proj-title > span {
+  font-size: 1.1em;
+  font-weight: 600;
+  border-radius: 10px;
+  background-color: #0d7377;
+  /* padding: 0.3em; */
+  max-height: 2.2em;
+}
+.proj-desc {
+  display: flex;
+  flex-direction: column;
+  margin: 0.5em 1em;
+}
+
+.grid-stack {
+  display: grid;
+  /* grid-auto-flow: row; */
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-auto-flow: dense;
+  /* grid-gap: 10px; */
+  gap: 10px;
+  align-items: stretch;
+}
+
+/* END PROJECTS */
+
+.contact {
+  max-width: 50%;
+  margin: 0 auto;
+}
+
+.foto {
+  margin-right: 5px;
+}
+
+.grid-contact {
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  /* grid-auto-flow: row; */
+  grid-gap: 10px;
+  /* align-items: stretch; */
+}
+
+.grid-contact > .contact {
+  display: flex;
+  /* flex-wrap: wrap; */
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  /* background-color: #555555; */
+  /* border-radius: 10px; */
+  padding: 5px;
+}
+#CONTACT a {
+  /* display: flex; */
+  text-align: center;
+  width: 200px;
+  text-decoration: none;
+  color: #14ffec;
+  font-size: 1.1em;
+  font-weight: 600;
+  border-radius: 5px;
+  background-color: #0d7377;
+  padding: 0.3em;
+  max-height: 1.9em;
+}
+
+/* END CONTACTS */
+
+/* FORM */
+
+input[type="text"],
+select,
+textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+  margin-top: 6px;
+  margin-bottom: 16px;
+  resize: vertical;
+}
+
+/* Style the submit button with a specific background color etc */
+input[type="submit"] {
+  width: 100%;
+  background-color: #0d7377;
+  color: #14ffec;
+  padding: 12px 20px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+input[type="submit"]:hover {
+  background-color: #00635a;
+}
+/* END FORM */
+
+/* FOOTER */
+
+.footer {
+  /* display: flex; */
+  width: 100%;
+  background-color: #323232;
+  color: #14ffec;
+  margin-top: 5em;
+  padding: 1em;
+  border-radius: 10px;
+  text-align: center;
+  font-weight: 500;
+
+  border-bottom: 4px solid;
+  border-image: linear-gradient(90deg, #212121 10%, rgba(20, 255, 236, 1) 35%, rgba(0, 212, 255, 1) 100%) 10;
+}
+
+/* END FOOTER */
+
+@media (max-width: 1200px) {
+  img {
+    max-width: 100%;
+    max-height: 280px;
+    border-radius: 10px;
+    margin-bottom: 1.5em;
+  }
+  .foto {
+    margin: 0 auto;
+    max-width: 50%;
+    max-height: 280px;
+    margin-bottom: 1.5em;
+  }
+
+  .profile {
+    /* display: flex; */
+    background-color: #323232;
+    color: #14ffec;
+    margin: 2em 2em;
+    padding: 0.5em;
+    border-radius: 10px;
+  }
+
+  .profile > .container > .name {
+    font-size: 1.3em;
+    font-weight: 600;
+    margin: 0.2em 0;
+  }
+  .project {
+    /* display: flex; */
+    background-color: #323232;
+    color: #14ffec;
+    margin: 2em 2em;
+    padding: 0.5em;
+    border-radius: 10px;
+  }
+  .project > .container {
+    flex-direction: column;
+  }
+
+  .project > .container > .name {
+    font-size: 1.3em;
+    font-weight: 600;
+    margin: 0.2em 0;
+  }
+  .project > .container > .description {
+    display: flex;
+    flex-direction: column;
+    font-size: 0.8em;
+    font-weight: 600;
+    margin-bottom: 0.5em;
+    color: #ffffff;
+  }
+
+  .contact {
+    max-width: 80%;
+    margin: 0 auto;
+  }
+
+  #CONTACT a {
+    /* display: flex; */
+    width: 90px;
+  }
+
+  .nav .nav-btn {
+    display: inline-block;
+    position: absolute;
+    right: 0px;
+    top: 0px;
+  }
+  .nav .nav-btn label {
+    display: inline-block;
+    width: 50px;
+    height: 50px;
+    padding: 13px;
+  }
+  .nav .nav-btn label span {
+    display: block;
+    width: 25px;
+    height: 10px;
+    border-top: 2px solid #eee;
+  }
+  .nav .nav-links {
+    position: absolute;
+    display: block;
+    width: 100%;
+    color: #ffffff;
+    background-color: #000000;
+    height: 0px;
+    transition: all 0.3s ease-in;
+    overflow-y: hidden;
+    top: 50px;
+    left: 0px;
+  }
+  .nav .nav-links a {
+    display: block;
+    width: 100%;
+  }
+
+  .nav > #nav-check:checked ~ .nav-links {
+    height: calc(100vh - 50px);
+    overflow-y: auto;
+  }
+}
+
+.wave {
+  animation-name: wave-animation; /* Refers to the name of your @keyframes element below */
+  animation-duration: 2.5s; /* Change to speed up or slow down */
+  animation-iteration-count: infinite; /* Never stop waving :) */
+  transform-origin: 70% 70%; /* Pivot around the bottom-left palm */
+  display: inline-block;
+}
+
+@keyframes wave-animation {
+  0% {
+    transform: rotate(0deg);
+  }
+  10% {
+    transform: rotate(14deg);
+  } /* The following five values can be played with to make the waving more or less extreme */
+  20% {
+    transform: rotate(-8deg);
+  }
+  30% {
+    transform: rotate(14deg);
+  }
+  40% {
+    transform: rotate(-4deg);
+  }
+  50% {
+    transform: rotate(10deg);
+  }
+  60% {
+    transform: rotate(0deg);
+  } /* Reset for the last half to pause */
+  100% {
+    transform: rotate(0deg);
+  }
+}

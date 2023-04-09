@@ -1,0 +1,16 @@
+{
+	"name": "basic-fe-live-code-1-2",
+	"course": "Basic FE with HTML \u0026 CSS",
+	"title": "Live Coding - Pokemon Series Site",
+	"order": 100,
+	"topics": [
+		"HTML",
+		"CSS"
+	],
+	"image": "nodejs-basic",
+	"command": "npm run test",
+	"totalTestCase": 6,
+	"metadata": {
+		"type": "live-coding"
+	}
+}
