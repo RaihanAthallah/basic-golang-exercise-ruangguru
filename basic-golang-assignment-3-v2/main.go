@@ -11,10 +11,12 @@ import (
 )
 
 type StudentManager interface {
-	Login(id string, name string) error
-	Register(id string, name string, studyProgram string) error
+	Login(id string, name string) (string, error)
+	Register(id string, name string, studyProgram string) (string, error)
 	GetStudyProgram(code string) (string, error)
-	ModifyStudent(name string, fn model.StudentModifier) error
+	ModifyStudent(name string, fn model.StudentModifier) (string, error)
+	ChangeStudyProgram(programStudi string) model.StudentModifier
+	GetStudents() []model.Student
 }
 
 type InMemoryStudentManager struct {
@@ -144,6 +146,7 @@ func (sm *InMemoryStudentManager) ModifyStudent(name string, fn model.StudentMod
 }
 
 func (sm *InMemoryStudentManager) ChangeStudyProgram(programStudi string) model.StudentModifier {
+
 	return func(s *model.Student) error {
 		s.StudyProgram = programStudi
 		return nil
@@ -151,7 +154,9 @@ func (sm *InMemoryStudentManager) ChangeStudyProgram(programStudi string) model.
 }
 
 func main() {
-	manager := NewInMemoryStudentManager()
+	var sm StudentManager = NewInMemoryStudentManager()
+	fmt.Print(sm.Login("A12345", "Aditira"))
+	var manager StudentManager = NewInMemoryStudentManager()
 
 	for {
 		helper.ClearScreen()
