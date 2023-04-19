@@ -2,11 +2,8 @@ package main
 
 import (
 	"fmt"
-	"go/token"
 	"strconv"
 	"strings"
-
-	"github.com/onsi/ginkgo/v2/ginkgo/labels"
 )
 
 // TODO: answer here
@@ -20,9 +17,24 @@ func ChangeOutput(data []string) map[string][]string {
 		firstOrLast := tokens[2]
 		value := tokens[3]
 
-		
+		if _, ok := result[label]; !ok {
+			result[label] = make([]string, 0)
+		}
+		if firstOrLast == "first" {
+			if index >= len(result[label]) {
+				result[label] = append(result[label], value)
+			} else {
+				result[label][index] = value + result[label][index]
+			}
+		} else {
+			if index >= len(result[label]) {
+				result[label] = append(result[label], value)
+			} else {
+				result[label][index] = result[label][index] + " " + value
+			}
+		}
 	}
-	return nil // TODO: replace this
+	return result // TODO: replace this
 }
 
 // bisa digunakan untuk melakukan debug
