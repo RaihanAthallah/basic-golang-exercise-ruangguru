@@ -6,120 +6,18 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 var UserLogin = make(map[string]model.User)
 
-func checkUserExistence(id string) bool {
-	file, err := os.OpenFile("data/users.txt", os.O_RDONLY, 0644)
-	check := false
-	if err != nil {
-		panic(err)
-	}
-	fileScanner := bufio.NewScanner(file)
-	for fileScanner.Scan() {
-		text := fileScanner.Text()
-		splited := strings.Split(text, "_")
-		if splited[0] == id {
-			check = true
-		}
-	}
-
-	defer file.Close()
-	return check
-}
-func getListStudy() ([]string, error) {
-	file, err := os.Open("data/list-study.txt")
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	var studyList []string
-	for scanner.Scan() {
-		studyList = append(studyList, scanner.Text())
-	}
-	return studyList, nil
-}
-
-type User struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Course    string `json:"course"`
-	Role      string `json:"role"`
-	StudyCode string `json:"study_code"`
-}
-
-func getUsers() ([]User, error) {
-	file, err := os.OpenFile("data/users.txt", os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	var userList []User
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		var user User
-		err := json.Unmarshal(scanner.Bytes(), &user)
-		if err != nil {
-			return nil, err
-		}
-		userList = append(userList, user)
-	}
-	return userList, nil
-}
-
-func saveUser(newUser User) error {
-	file, err := os.OpenFile("data/users.txt", os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	_, err = file.WriteString(newUser.ID + "_" + newUser.Name + "_" + newUser.StudyCode + "_" + newUser.Role + "\n")
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-func getUserData(userID string) (model.User, error) {
-	// read user data from file
-	usersFile, err := os.Open(filepath.Join("data", "users.txt"))
-	if err != nil {
-		return model.User{}, fmt.Errorf("failed to open users file: %v", err)
-	}
-	defer usersFile.Close()
-
-	// decode JSON data from file
-	var users []model.User
-	err = json.NewDecoder(usersFile).Decode(&users)
-	if err != nil {
-		return model.User{}, fmt.Errorf("failed to decode users data: %v", err)
-	}
-
-	// search for user by ID
-
-	for _, user := range users {
-		// split := strings.Split(user.ID, "_")
-		if user.ID == userID {
-			return user, nil
-		}
-	}
-
-	return model.User{}, fmt.Errorf("user not found")
-}
-
 // DESC: func Auth is a middleware to check user login id, only user that already login can pass this middleware
-
 func Auth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c, err := r.Cookie("user_login_id")
@@ -147,14 +45,12 @@ func AuthAdmin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("user_login_role")
 		if err != nil {
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{"error": "missing user_login_role cookie"})
+			http.Error(w, "{\"error\":\"user login role not found\"}", http.StatusUnauthorized)
 			return
 		}
 
 		if cookie.Value != "admin" {
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{"error": "user login role not Admin"})
+			http.Error(w, "{\"error\":\"user login role not Admin\"}", http.StatusUnauthorized)
 			return
 		}
 
@@ -162,438 +58,426 @@ func AuthAdmin(next http.Handler) http.Handler {
 	})
 }
 
+func getUserData(id string) (model.User, bool) {
+	file, err := os.OpenFile("data/users.txt", os.O_RDONLY, 0644)
+	user := model.User{}
+	isCheck := false
+	if err != nil {
+		panic(err)
+	}
+	fileScanner := bufio.NewScanner(file)
+	for fileScanner.Scan() {
+		text := fileScanner.Text()
+		splited := strings.Split(text, "_")
+		if splited[0] == id {
+			user = model.User{ID: splited[0], Name: splited[1], Role: splited[2]}
+			isCheck = true
+			// role = splited[3]
+			break
+		}
+	}
+	return user, isCheck
+}
+
 func Login(w http.ResponseWriter, r *http.Request) {
-	// Check HTTP method
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Method is not allowed!"})
+		errorResponse := model.ErrorResponse{Error: "Method is not allowed!"}
+		json.NewEncoder(w).Encode(errorResponse)
 		return
 	}
 
 	// Parse request body
-	var reqBody struct {
-		ID   string `json:"id"`
-		Name string `json:"name"`
-	}
-	err := json.NewDecoder(r.Body).Decode(&reqBody)
+	var requestBody model.UserLogin
+	err := json.NewDecoder(r.Body).Decode(&requestBody)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
+		errorResponse := model.ErrorResponse{Error: err.Error()}
+		json.NewEncoder(w).Encode(errorResponse)
 		return
 	}
 
-	// Check if ID or Name is empty
-	if reqBody.ID == "" || reqBody.Name == "" {
+	// Check ID and name
+	if requestBody.ID == "" || requestBody.Name == "" {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "ID or name is empty"})
+		errorResponse := model.ErrorResponse{Error: "ID or name is empty"}
+		json.NewEncoder(w).Encode(errorResponse)
 		return
 	}
 
-	// Get user data
-	userData, err := getUserData(reqBody.ID)
-	if !checkUserExistence(reqBody.ID) {
+	// Check user in file data/users.txt
+	// user, ok := UserLogin[requestBody.ID]
+	user, ok := getUserData(requestBody.ID)
+	fmt.Println(user)
+	fmt.Println(!ok)
+	if !ok {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "user not found"})
+		errorResponse := model.ErrorResponse{Error: "user not found"}
+		json.NewEncoder(w).Encode(errorResponse)
 		return
 	}
 
-	// Create cookies
-	cookieID := &http.Cookie{Name: "user_login_id", Value: reqBody.ID}
-	cookieRole := &http.Cookie{Name: "user_login_role", Value: userData.Role}
+	// Set cookie
+	http.SetCookie(w, &http.Cookie{Name: "user_login_id", Value: user.ID})
+	http.SetCookie(w, &http.Cookie{Name: "user_login_role", Value: user.Role})
 
-	// Set cookies in response
-	http.SetCookie(w, cookieID)
-	http.SetCookie(w, cookieRole)
+	// Save user to UserLogin map
+	UserLogin[user.ID] = user
 
-	// Add user to UserLogin map
-	UserLogin[reqBody.ID] = userData
-
-	// Return success response
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"username": reqBody.ID, "message": "login success"})
+	// Response success
+	successResponse := model.SuccessResponse{Username: user.Name, Message: "login success"}
+	json.NewEncoder(w).Encode(successResponse)
 }
 
 func Register(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Method is not allowed!"})
+		w.Header().Set("Content-Type", "application/json")
+		response := map[string]string{"error": "Method is not allowed!"}
+		json.NewEncoder(w).Encode(response)
 		return
 	}
 
-	var newUser User
+	var newUser model.User
 	err := json.NewDecoder(r.Body).Decode(&newUser)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
+		w.Header().Set("Content-Type", "application/json")
+		response := map[string]string{"error": "Invalid request body"}
+		json.NewEncoder(w).Encode(response)
 		return
 	}
 
 	if newUser.ID == "" || newUser.Name == "" || newUser.Role == "" || newUser.StudyCode == "" {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "ID, name, study code or role is empty"})
+		w.Header().Set("Content-Type", "application/json")
+		response := map[string]string{"error": "ID, name, study code or role is empty"}
+		json.NewEncoder(w).Encode(response)
 		return
 	}
 
 	if newUser.Role != "admin" && newUser.Role != "user" {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "role must be admin or user"})
+		w.Header().Set("Content-Type", "application/json")
+		response := map[string]string{"error": "role must be admin or user"}
+		json.NewEncoder(w).Encode(response)
 		return
 	}
 
-	// userList, err := getUserData(newUser.ID)
+	studyList, err := ioutil.ReadFile("data/list-study.txt")
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to get user list"})
+		w.Header().Set("Content-Type", "application/json")
+		response := map[string]string{"error": "Failed to read study list file"}
+		json.NewEncoder(w).Encode(response)
 		return
 	}
-	// for _, user := range userList {
 
-	// if user.ID == newUser.ID {
-	if checkUserExistence(newUser.ID) {
+	if !strings.Contains(string(studyList), newUser.StudyCode+"_") {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "user id already exist"})
+		w.Header().Set("Content-Type", "application/json")
+		response := map[string]string{"error": "study code not found"}
+		json.NewEncoder(w).Encode(response)
 		return
 	}
-	// }
 
-	err = saveUser(newUser)
+	userData, err := ioutil.ReadFile("data/users.txt")
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to save user"})
+		w.Header().Set("Content-Type", "application/json")
+		response := map[string]string{"error": "Failed to read user data file"}
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+
+	if strings.Contains(string(userData), newUser.ID+"_") {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Header().Set("Content-Type", "application/json")
+		response := map[string]string{"error": "user id already exist"}
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+
+	file, err := os.OpenFile("data/users.txt", os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Header().Set("Content-Type", "application/json")
+		response := map[string]string{"error": "Failed to open user data file"}
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+	defer file.Close()
+
+	_, err = fmt.Fprintf(file, "%s_%s_%s\n", newUser.ID, newUser.Name, newUser.Role)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Header().Set("Content-Type", "application/json")
+		response := map[string]string{"error": "Failed to write to user data file"}
+		json.NewEncoder(w).Encode(response)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"username": newUser.ID, "message": "register success"})
+	w.Header().Set("Content-Type", "application/json")
+	response := map[string]string{"username": newUser.ID, "message": "register success"}
+	json.NewEncoder(w).Encode(response)
+
 }
 
 func Logout(w http.ResponseWriter, r *http.Request) {
-	// Cek apakah method request yang digunakan adalah POST
+	userID := r.Context().Value("userID").(string)
+
+	// Mengecek method request
 	if r.Method != "POST" {
 		w.WriteHeader(http.StatusMethodNotAllowed)
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"error": "Method is not allowed!"})
 		return
 	}
 
-	// Ambil data user id dari context
-	userID := r.Context().Value("userID").(string)
-
-	// Cek apakah user sudah login
-	_, err := r.Cookie("user_login_id")
+	// Mengecek cookie user_login_id
+	cookie, err := r.Cookie("user_login_id")
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"error": "user login id not found"})
 		return
 	}
 
-	// Hapus cookie dengan key user_login_id dan user_login_role
-	deleteCookie(w, "user_login_id")
-	deleteCookie(w, "user_login_role")
+	// Mengecek apakah userID sama dengan cookie user_login_id
+	if userID != cookie.Value {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"error": "user login id not found"})
+		return
+	}
 
-	// Hapus data user yang login dari map UserLogin
+	// Menghapus cookie user_login_id dan user_login_role
+	http.SetCookie(w, &http.Cookie{Name: "user_login_id", Value: "", Expires: time.Now().Add(-time.Hour)})
+	http.SetCookie(w, &http.Cookie{Name: "user_login_role", Value: "", Expires: time.Now().Add(-time.Hour)})
+
+	// Menghapus data user dari map UserLogin
 	delete(UserLogin, userID)
 
-	// Berikan response 200 OK dan message sukses
+	// Memberikan response sukses
 	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"username": userID, "message": "logout success"})
 }
 
-func deleteCookie(w http.ResponseWriter, name string) {
-	cookie := &http.Cookie{
-		Name:   name,
-		Value:  "",
-		Path:   "/",
-		MaxAge: -1,
-	}
-	http.SetCookie(w, cookie)
-}
-
-func checkAuth(r *http.Request) (string, error) {
-	cookie, err := r.Cookie("user_login_id")
+func getListStudy() ([]model.StudyData, error) {
+	f, err := os.Open(filepath.Join("data", "list-study.txt"))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return cookie.Value, nil
-}
+	defer f.Close()
 
-func GetStudyProgram(w http.ResponseWriter, r *http.Request) {
-	// Check if the method is allowed
-	if r.Method != "GET" {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Method is not allowed!"})
-		return
-	}
+	var studyList []model.StudyData
 
-	// Check if user is authenticated
-	_, err := checkAuth(r)
-	if err != nil {
-		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"error": "user login id not found"})
-		return
-	}
-
-	// Read list-study.txt file
-	studyFile, err := os.Open("data/list-study.txt")
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "internal server error"})
-		return
-	}
-	defer studyFile.Close()
-
-	// Parse the file and return the list of study programs
-	scanner := bufio.NewScanner(studyFile)
-	studyPrograms := make([]map[string]string, 0)
+	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := scanner.Text()
-		splitted := strings.Split(line, ";")
-		studyProgram := make(map[string]string)
-		studyProgram["code"] = splitted[0]
-		studyProgram["name"] = splitted[1]
-		studyPrograms = append(studyPrograms, studyProgram)
+		split := strings.Split(line, "_")
+		studyList = append(studyList, model.StudyData{Code: split[0], Name: split[1]})
 	}
-
-	json.NewEncoder(w).Encode(studyPrograms)
-}
-
-func AddUser(w http.ResponseWriter, r *http.Request) {
-	// Only allow POST method
-	if r.Method != "POST" {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Method is not allowed!"})
-		return
-	}
-
-	// Check user login status
-	loginRole, err := r.Cookie("user_login_role")
-	if err != nil || loginRole.Value != "admin" {
-		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"error": "user login role not Admin"})
-		return
-	}
-
-	// Parse request body
-	var newUser User
-	err = json.NewDecoder(r.Body).Decode(&newUser)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
-		return
-	}
-
-	// Check if any field is empty
-	if newUser.ID == "" || newUser.Name == "" || newUser.Course == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "ID, name, or course code is empty"})
-		return
-	}
-
-	// Check if user ID already exists
-	userList, err := readUserList()
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to read user data"})
-		return
-	}
-	if _, exists := userList[newUser.ID]; exists {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "user id already exist"})
-		return
-	}
-
-	// Check if course code exists
-	studyList, err := readStudyList()
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to read study data"})
-		return
-	}
-	if _, exists := studyList[newUser.Course]; !exists {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "course code not found"})
-		return
-	}
-
-	// Add new user to the user list
-	userList[newUser.ID] = &newUser
-	err = writeUserList(userList)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to add user"})
-		return
-	}
-
-	// Success response
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"username": newUser.ID, "message": "add user success"})
-}
-
-func readUserList() (map[string]*User, error) {
-	userList := make(map[string]*User)
-
-	file, err := os.Open("data/users.txt")
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		fields := strings.Split(scanner.Text(), "\t")
-		if len(fields) == 3 {
-			userList[fields[0]] = &User{ID: fields[0], Name: fields[1], Course: fields[2]}
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
-
-	return userList, nil
-}
-
-type Study struct {
-	Code  string `json:"code"`
-	Title string `json:"title"`
-}
-
-func readStudyList() (map[string]*Study, error) {
-	studyList := make(map[string]*Study)
-
-	file, err := os.Open("data/study.txt")
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		fields := strings.Split(scanner.Text(), "\t")
-		if len(fields) == 2 {
-			studyList[fields[0]] = &Study{Code: fields[0], Title: fields[1]}
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
-
 	return studyList, nil
 }
 
-func writeUserList(userList map[string]*User) error {
-	file, err := os.Create("data/users.txt")
-	if err != nil {
-		return err
+func GetStudyProgram(w http.ResponseWriter, r *http.Request) {
+	// Check if the request method is GET
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(w).Encode(model.ErrorResponse{Error: "Method is not allowed!"})
+		return
 	}
+
+	studyList, err := getListStudy()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(model.ErrorResponse{Error: "Failed to read study list"})
+		return
+	}
+	// Return success response with list of study programs
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(studyList)
+}
+
+func AddUser(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(w).Encode(model.ErrorResponse{Error: "Method is not allowed!"})
+		return
+	}
+
+	reqBody, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(model.ErrorResponse{Error: "Invalid request body"})
+		return
+	}
+
+	var user model.User
+	err = json.Unmarshal(reqBody, &user)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(model.ErrorResponse{Error: "Invalid request body"})
+		return
+	}
+
+	if user.ID == "" || user.Name == "" || user.StudyCode == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(model.ErrorResponse{Error: "ID, name, or study code is empty"})
+		return
+	}
+
+	if !isStudyCodeExist(user.StudyCode) {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(model.ErrorResponse{Error: "study code not found"})
+		return
+	}
+
+	if isUserExist(user.ID) {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(model.ErrorResponse{Error: "user id already exist"})
+		return
+	}
+
+	file, err := os.OpenFile("data/users.txt", os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(model.ErrorResponse{Error: "Failed to open file"})
+		return
+	}
+
 	defer file.Close()
 
-	for _, user := range userList {
-		line := fmt.Sprintf("%s\t%s\t%s\n", user.ID, user.Name, user.Course)
-		_, err := file.WriteString(line)
-		if err != nil {
-			return err
+	user.Role = "user"
+
+	data := []string{user.ID, user.Name, user.Role, user.StudyCode}
+	_, err = file.WriteString(strings.Join(data, "_") + "\n")
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(model.ErrorResponse{Error: "Failed to write file"})
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(model.SuccessResponse{Username: user.ID, Message: "add user success"})
+}
+
+func isUserExist(id string) bool {
+	file, err := os.Open("data/users.txt")
+	if err != nil {
+		return false
+	}
+
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		parts := strings.Split(line, "_")
+		if parts[0] == id {
+			return true
 		}
 	}
 
-	return nil
+	return false
 }
 
-func getLoggedInUser(r *http.Request) (string, string, error) {
-	cookie, err := r.Cookie("user_login_id")
+func isStudyCodeExist(code string) bool {
+	file, err := os.Open("data/list-study.txt")
 	if err != nil {
-		return "", "", errors.New("user login id not found")
+		return false
 	}
 
-	userID := cookie.Value
+	defer file.Close()
 
-	roleCookie, err := r.Cookie("user_login_role")
-	if err != nil {
-		return "", "", errors.New("user login role not found")
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		parts := strings.Split(line, "_")
+		if parts[0] == code {
+			return true
+		}
 	}
-
-	role := roleCookie.Value
-
-	return userID, role, nil
+	return false
 }
 
 func DeleteUser(w http.ResponseWriter, r *http.Request) {
-	// check if the method is DELETE
-	if r.Method != http.MethodDelete {
+	// Cek method request
+	if r.Method != "DELETE" {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"error": "Method is not allowed!"})
+		fmt.Fprintf(w, `{"error":"Method is not allowed!"}`)
 		return
 	}
 
-	// check if the user is logged in and has admin role
-	userID, role, err := getLoggedInUser(r)
+	// Cek cookie login
+	_, err := r.Cookie("user_login_id")
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"error": "internal server error"})
-		return
-	}
-	if userID == "" {
 		w.WriteHeader(http.StatusUnauthorized)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"error": "user login id not found"})
+		fmt.Fprintf(w, `{"error":"user login id not found"}`)
 		return
 	}
 
-	if role != "admin" {
+	// Cek role admin
+	roleCookie, err := r.Cookie("user_login_role")
+	if err != nil || roleCookie.Value != "admin" {
 		w.WriteHeader(http.StatusUnauthorized)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"error": "user login role not Admin"})
+		fmt.Fprintf(w, `{"error":"user login role not Admin"}`)
 		return
 	}
 
-	// get the user ID to be deleted from query parameter
-	userIDToDelete := r.URL.Query().Get("id")
-	if userIDToDelete == "" {
+	// Ambil ID user dari query parameter
+	id := r.URL.Query().Get("id")
+	if id == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"error": "id parameter is missing"})
+		fmt.Fprintf(w, `{"error":"user id is empty"}`)
 		return
 	}
 
-	// check if the user ID exists in the data/users.txt file
+	// Cari dan hapus data user dari file users.txt
 	file, err := os.OpenFile("data/users.txt", os.O_RDWR, 0644)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"error": "internal server error"})
+		fmt.Fprintf(w, `{"error":"%s"}`, err.Error())
 		return
 	}
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
-	var lines []string
+	writer := bufio.NewWriter(file)
+	found := false
+
 	for scanner.Scan() {
-		if !strings.Contains(scanner.Text(), userIDToDelete) {
-			lines = append(lines, scanner.Text())
+		line := scanner.Text()
+		fields := strings.Split(line, "_")
+
+		if fields[0] != id {
+			// tulis kembali data user ke file
+			fmt.Fprintln(writer, line)
+		} else {
+			found = true
 		}
 	}
-	if err := scanner.Err(); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+	if !found {
+		w.WriteHeader(http.StatusBadRequest)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"error": "internal server error"})
-		return
-	}
-	newContent := strings.Join(lines, "\n")
-	err = os.WriteFile("data/users.txt", []byte(newContent), 0644)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"error": "internal server error"})
+		fmt.Fprintf(w, `{"error":"user id is empty"}`)
 		return
 	}
 
-	// return success response
+	// Simpan perubahan file dan kirim response
+	writer.Flush()
 	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"username": userIDToDelete, "message": "delete success"})
+	fmt.Fprintf(w, `{"username":"%s","message":"delete success"}`, id)
 }
 
 // DESC: Gunakan variable ini sebagai goroutine di handler GetWeather
@@ -602,38 +486,46 @@ var GetWetherByRegionAPI = client.GetWeatherByRegion
 func GetWeather(w http.ResponseWriter, r *http.Request) {
 	var listRegion = []string{"jakarta", "bandung", "surabaya", "yogyakarta", "medan", "makassar", "manado", "palembang", "semarang", "bali"}
 
-	// Membuat channel untuk mengumpulkan hasil cuaca dari goroutine
-	ch := make(chan *model.MainWeather, len(listRegion))
+	var resCh = make(chan model.MainWeather, len(listRegion))
+	var errCh = make(chan error, len(listRegion))
 
-	// Mengambil informasi cuaca dari 10 wilayah menggunakan goroutine
+	// goroutine to get weather data for each region
 	for _, region := range listRegion {
 		go func(region string) {
-			weather, err := client.GetWeatherByRegion(region)
+			weather, err := GetWetherByRegionAPI(region)
 			if err != nil {
-				// Jika terdapat error, kirim error ke dalam channel
-				ch <- nil
+				errCh <- err
 				return
 			}
-			// Jika berhasil, kirim hasil cuaca ke dalam channel
-			ch <- &weather
+			resCh <- weather
 		}(region)
 	}
 
-	// Mengumpulkan hasil cuaca dari channel
 	var result []model.MainWeather
+	var err error
+	// get results from channels
 	for i := 0; i < len(listRegion); i++ {
-		weather := <-ch
-		if weather == nil {
-			// Jika terdapat error dari salah satu goroutine, kirim error ke HTTP response
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte("error"))
-			return
+		select {
+		case weather := <-resCh:
+			result = append(result, weather)
+		case e := <-errCh:
+			err = e
 		}
-		// Jika tidak ada error, tambahkan hasil cuaca ke dalam result
-		result = append(result, *weather)
 	}
 
-	// Mengirim hasil cuaca ke HTTP response
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	respBody, err := json.Marshal(result)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(result)
+	w.Write(respBody)
+
 }

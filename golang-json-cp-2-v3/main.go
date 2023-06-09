@@ -1,8 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"os"
 	"sort"
+	"strings"
 )
 
 type LoanData struct {
@@ -24,16 +28,16 @@ type Employee struct {
 
 // json structure
 type LoanRecord struct {
-	MonthDate    string
-	StartBalance int
-	EndBalance   int
-	Borrowers    []Borrower
+	MonthDate    string     `json:"month_date"`
+	StartBalance int        `json:"start_balance"`
+	EndBalance   int        `json:"end_balance"`
+	Borrowers    []Borrower `json:"borrowers"`
 }
 
 type Borrower struct {
-	ID    string
-	Name  string
-	Total int
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Total int    `json:"total_loan"`
 }
 
 func FindEmployee(id string, employees []Employee) (Employee, bool) {
@@ -90,11 +94,40 @@ func GetEndBalanceAndBorrowers(data LoanData) (int, []Borrower) {
 }
 
 func LoanReport(data LoanData) LoanRecord {
-	return LoanRecord{} // TODO: replace this
+	if len(data.Data) != 0 {
+		var loanRecord = LoanRecord{
+			StartBalance: data.StartBalance,
+		}
+		endBalance, borrowers := GetEndBalanceAndBorrowers(data)
+
+		date := strings.Split(data.Data[0].Date, "-")
+		loanRecord.MonthDate = fmt.Sprintf("%s %s", date[1], date[2])
+
+		loanRecord.EndBalance = endBalance
+		loanRecord.Borrowers = borrowers
+
+		return loanRecord
+
+	} else {
+		return LoanRecord{}
+	}
 }
 
 func RecordJSON(record LoanRecord, path string) error {
-	return nil // TODO: replace this
+	_, err := os.Stat(path)
+
+	if os.IsNotExist(err) {
+		file, _ := os.Create(path)
+
+		defer file.Close()
+		return nil
+	}
+
+	byteJSON, _ := json.Marshal(record)
+	_ = ioutil.WriteFile(path, byteJSON, 0644)
+
+	return nil
+
 }
 
 // gunakan untuk debug
@@ -113,11 +146,14 @@ func main() {
 			{"3", "Employee C", "Staff"},
 		},
 	})
+	// records := LoanReport(LoanData{
+
+	// })
 
 	err := RecordJSON(records, "loan-records.json")
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	fmt.Println(records)
+	fmt.Printf("%+v\n", records)
 }
